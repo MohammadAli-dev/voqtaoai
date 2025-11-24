@@ -54,4 +54,5 @@ export interface AppState {
   mediaUrl: string | null;
   mimeType: string | null;
   fileName: string | null;
+  customInstructions: string;
 }

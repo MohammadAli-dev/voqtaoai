@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { FileUpload } from './components/FileUpload';
 import { AnalysisDashboard } from './components/AnalysisDashboard';
+import { SettingsModal } from './components/SettingsModal';
 import { AppState } from './types';
 import { analyzeSalesCall } from './services/geminiService';
 import { Loader2 } from 'lucide-react';
@@ -14,7 +15,10 @@ const App: React.FC = () => {
     mediaUrl: null,
     mimeType: null,
     fileName: null,
+    customInstructions: "",
   });
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const analyzeMedia = async () => {
       if (!state.mediaUrl || !state.mimeType) return;
@@ -34,7 +38,8 @@ const App: React.FC = () => {
             base64Data = base64String.split(',')[1];
             
             try {
-                const result = await analyzeSalesCall(base64Data, state.mimeType!);
+                // Pass custom instructions to the service
+                const result = await analyzeSalesCall(base64Data, state.mimeType!, state.customInstructions);
                 setState(prev => ({ ...prev, status: 'complete', data: result }));
             } catch (err: any) {
                 console.error(err);
@@ -60,54 +65,64 @@ const App: React.FC = () => {
     // Create local URL for playback
     const url = URL.createObjectURL(file);
     
-    setState({
+    setState(prev => ({
+      ...prev,
       status: 'ready',
       data: null,
       error: null,
       mediaUrl: url,
       mimeType: file.type,
       fileName: file.name
-    });
+    }));
   };
 
   const handleUrlSelect = async (url: string) => {
-      // Temporary state while validating URL
-      // In a real app we might validate HEAD first, but here we just set ready
-      // We will try to fetch mime type when they click analyze or here?
-      // Let's assume it works for now and grab name from URL
       const name = url.split('/').pop() || 'Remote File';
       
-      setState({
+      setState(prev => ({
+          ...prev,
           status: 'ready',
           data: null,
           error: null,
           mediaUrl: url,
-          mimeType: 'audio/mp3', // Default, updated on analyze if possible or we can pre-fetch
+          mimeType: 'audio/mp3', // Default, likely to be updated if needed or generic
           fileName: name
-      });
+      }));
   };
 
   const handleRemoveFile = () => {
       if (state.mediaUrl && state.mediaUrl.startsWith('blob:')) {
           URL.revokeObjectURL(state.mediaUrl);
       }
-      setState({
+      setState(prev => ({
+          ...prev,
           status: 'idle',
           data: null,
           error: null,
           mediaUrl: null,
           mimeType: null,
           fileName: null
-      });
+      }));
   };
 
   const handleReset = () => {
       handleRemoveFile();
   };
 
+  const handleSaveSettings = (instructions: string) => {
+    setState(prev => ({ ...prev, customInstructions: instructions }));
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Header />
+      <Header onOpenSettings={() => setIsSettingsOpen(true)} />
+      
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        onSave={handleSaveSettings}
+        currentInstructions={state.customInstructions}
+      />
       
       <main>
         {state.status === 'idle' && (
@@ -117,7 +132,7 @@ const App: React.FC = () => {
                  Unlock the power of your <br/>
                  <span className="text-primary-600">Sales Conversations</span>
                </h2>
-               <p className="max-w-2xl mx-auto text-xl text-slate-500">
+               <p className="max-w-2xl mx-auto text-xl text-slate-500 px-4">
                  Upload sales call recordings (audio or video) to let Gemini transcribe, analyze, and coach your team.
                </p>
              </div>
@@ -129,6 +144,16 @@ const App: React.FC = () => {
                 onAnalyze={() => {}}
                 isAnalyzing={false}
              />
+             
+             {/* Feature Tip */}
+             <div className="max-w-2xl mx-auto mt-8 text-center">
+                <button 
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="text-sm text-primary-600 hover:text-primary-800 font-medium bg-primary-50 px-4 py-2 rounded-full transition-colors"
+                >
+                  ✨ Pro Tip: Click the Settings icon to customize your coaching playbook
+                </button>
+             </div>
            </div>
         )}
 
@@ -146,7 +171,7 @@ const App: React.FC = () => {
              </div>
              
              <FileUpload 
-                onFileSelect={handleFileSelect} // Not used in this state but prop required
+                onFileSelect={handleFileSelect} 
                 onUrlSelect={handleUrlSelect} 
                 selectedFile={state.fileName ? { name: state.fileName, type: state.mimeType || 'unknown' } : null}
                 onRemove={handleRemoveFile}
