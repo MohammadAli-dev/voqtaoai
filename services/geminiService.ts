@@ -105,7 +105,7 @@ const responseSchema: Schema = {
   required: ["transcript", "sentimentGraph", "coaching", "competitors", "callScore", "objections", "redFlags", "nextSteps"],
 };
 
-export const analyzeSalesCall = async (base64Data: string, mimeType: string): Promise<AnalysisResult> => {
+export const analyzeSalesCall = async (base64Data: string, mimeType: string, customInstructions?: string): Promise<AnalysisResult> => {
   if (!API_KEY) {
     throw new Error("API Key is missing. Please check your environment variables.");
   }
@@ -113,6 +113,21 @@ export const analyzeSalesCall = async (base64Data: string, mimeType: string): Pr
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   try {
+    const promptText = `Analyze this sales call (audio or video) extensively based on the following parameters:
+            
+            1. **Transcript**: Transcribe the conversation, diarizing speakers (e.g., 'Sales Rep', 'Prospect').
+            2. **Sentiment Timeline**: Analyze sentiment flow (0-100) for a graph.
+            3. **Coaching**: Identify 3 strengths and 3 weaknesses (missed opportunities), plus a summary.
+            4. **Objection Detection**: Identify specific objections raised by the prospect and how the rep handled them.
+            5. **Red Flags/Churn Clues**: Identify risks (budget, authority, timeline, competitor lock-in). Assign High/Medium/Low risk.
+            6. **Competitor Mentions**: List any competitors mentioned with context.
+            7. **Next Steps**: Provide 3-5 concrete recommendations for what the rep should do next.
+            8. **Call Score**: Assign a final score (0-100) based on engagement, objection handling, and closing skills.
+            
+            ${customInstructions ? `\nIMPORTANT - CUSTOM USER INSTRUCTIONS:\nThe user has defined specific criteria for this analysis. Prioritize these instructions over generic rules: "${customInstructions}"\n` : ""}
+
+            Return the output strictly as JSON matching the schema provided.`;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: {
@@ -124,18 +139,7 @@ export const analyzeSalesCall = async (base64Data: string, mimeType: string): Pr
             },
           },
           {
-            text: `Analyze this sales call (audio or video) extensively based on the following parameters:
-            
-            1. **Transcript**: Transcribe the conversation, diarizing speakers (e.g., 'Sales Rep', 'Prospect').
-            2. **Sentiment Timeline**: Analyze sentiment flow (0-100) for a graph.
-            3. **Coaching**: Identify 3 strengths and 3 weaknesses (missed opportunities), plus a summary.
-            4. **Objection Detection**: Identify specific objections raised by the prospect and how the rep handled them.
-            5. **Red Flags/Churn Clues**: Identify risks (budget, authority, timeline, competitor lock-in). Assign High/Medium/Low risk.
-            6. **Competitor Mentions**: List any competitors mentioned with context.
-            7. **Next Steps**: Provide 3-5 concrete recommendations for what the rep should do next.
-            8. **Call Score**: Assign a final score (0-100) based on engagement, objection handling, and closing skills.
-            
-            Return the output strictly as JSON matching the schema provided.`,
+            text: promptText,
           },
         ],
       },
