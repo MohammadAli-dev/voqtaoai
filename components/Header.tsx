@@ -15,7 +15,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSettings }) => {
               <Mic size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 leading-none">SalesIQ</h1>
+              <h1 className="text-xl font-bold text-gray-900 leading-none">VoqtoAI</h1>
               <span className="text-xs text-primary-600 font-medium">AI Coaching Platform</span>
             </div>
           </div>

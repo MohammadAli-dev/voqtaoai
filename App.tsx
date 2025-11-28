@@ -16,6 +16,8 @@ const App: React.FC = () => {
     mimeType: null,
     fileName: null,
     customInstructions: "",
+    industryName: "",
+    industryExamples: "",
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -39,8 +41,13 @@ const App: React.FC = () => {
             base64Data = base64String.includes(',') ? base64String.split(',')[1] : base64String;
             
             try {
-                // Pass custom instructions to the service
-                const result = await analyzeSalesCall(base64Data, state.mimeType!, state.customInstructions);
+                // Pass custom instructions AND industry context to the service
+                const result = await analyzeSalesCall(base64Data, state.mimeType!, {
+                    fileName: state.fileName || undefined,
+                    customInstructions: state.customInstructions,
+                    industryName: state.industryName,
+                    industryExamples: state.industryExamples
+                });
                 setState(prev => ({ ...prev, status: 'complete', data: result }));
             } catch (err: any) {
                 console.error(err);
@@ -132,8 +139,13 @@ const App: React.FC = () => {
       handleRemoveFile();
   };
 
-  const handleSaveSettings = (instructions: string) => {
-    setState(prev => ({ ...prev, customInstructions: instructions }));
+  const handleSaveSettings = (settings: { instructions: string; industryName: string; industryExamples: string }) => {
+    setState(prev => ({ 
+        ...prev, 
+        customInstructions: settings.instructions,
+        industryName: settings.industryName,
+        industryExamples: settings.industryExamples
+    }));
   };
 
   return (
@@ -145,6 +157,8 @@ const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)} 
         onSave={handleSaveSettings}
         currentInstructions={state.customInstructions}
+        currentIndustryName={state.industryName}
+        currentIndustryExamples={state.industryExamples}
       />
       
       <main>
@@ -174,7 +188,7 @@ const App: React.FC = () => {
                   onClick={() => setIsSettingsOpen(true)}
                   className="text-sm text-primary-600 hover:text-primary-800 font-medium bg-primary-50 px-4 py-2 rounded-full transition-colors"
                 >
-                  ✨ Pro Tip: Click the Settings icon to customize your coaching playbook
+                  ✨ Pro Tip: Click Settings to add Industry Context & Custom Playbooks
                 </button>
              </div>
            </div>
@@ -188,7 +202,7 @@ const App: React.FC = () => {
                </h2>
                <p className="text-slate-500 mt-2">
                  {state.status === 'analyzing' 
-                    ? 'Gemini is identifying speakers, analyzing sentiment, and generating insights.' 
+                    ? 'VoqtoAI is identifying speakers, analyzing sentiment, and generating insights.' 
                     : 'Review your file before starting the AI analysis.'}
                </p>
              </div>

@@ -1,0 +1,55 @@
+{
+  "transcript": [
+    { "speaker": "Rep", "text": "We have the new USB-C braided cables in stock.", "sentiment": "positive", "timestamp": "00:10" },
+    { "speaker": "Store Owner", "text": "Are they cheaper than the generic ones I get from Delhi?", "sentiment": "neutral", "timestamp": "00:20" }
+  ],
+  "sentimentGraph": [
+    { "timeOffset": 0, "score": 60, "label": "Intro" },
+    { "timeOffset": 60, "score": 40, "label": "Price Pushback" }
+  ],
+  "coaching": {
+    "strengths": ["Product knowledge"],
+    "missedOpportunities": ["Did not emphasize warranty", "Missed bulk discount upsell"],
+    "summary": "Transactional call, missed value selling.",
+    "teachingMoments": ["Sell on durability/returns reduction, not just price."]
+  },
+  "competitors": [],
+  "objections": [
+    { "objection": "Generic brands are cheaper", "timestamp": "00:20", "severity": "Medium", "response": "Mentioned brand reliability but didn't give numbers." }
+  ],
+  "redFlags": [
+    { "flag": "Price Sensitivity", "timestamp": "00:20", "riskLevel": "High", "context": "Customer is extremely focused on margin." }
+  ],
+  "nextSteps": ["Send sample pack"],
+  "behavioral": {
+    "talkTimeSec": 60,
+    "listenTimeSec": 40,
+    "talkToListenRatio": 1.5,
+    "interruptions": 3,
+    "speakingRateWpm": 160,
+    "confidenceToneScore": 70
+  },
+  "microScores": {
+    "discoveryScore": 40,
+    "objectionHandlingScore": 50,
+    "productMatchScore": 90,
+    "technicalAccuracyScore": 90,
+    "complianceScore": 80
+  },
+  "industryAnalysis": {
+    "industryName": "Mobile Accessories",
+    "painPointsDetected": ["Low margins", "Defective returns"],
+    "buyingSignals": [],
+    "productsDiscussed": ["USB-C Cables", "Screen Guards"]
+  },
+  "callMetadata": {
+    "durationSec": 100,
+    "language": "English",
+    "detectedIndustry": "Retail / Electronics"
+  },
+  "modelCallScore": 65,
+  "trainingSuggested": {
+    "modules": ["Value Selling 101"],
+    "reason": "Struggled to justify premium price."
+  }
+}

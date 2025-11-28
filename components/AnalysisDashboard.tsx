@@ -20,6 +20,9 @@ interface AnalysisDashboardProps {
 export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ data, mediaUrl, mimeType, onReset }) => {
   const isVideo = mimeType?.startsWith('video/');
 
+  // Use derived score if available (calculated from micro-scores + model score), otherwise fallback to raw model score
+  const displayScore = data.derivedScores?.overallScore ?? data.modelCallScore ?? 0;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-gray-200 pb-6">
@@ -65,7 +68,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ data, medi
           {/* Top Row: Score & Summary */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <div className="md:col-span-1">
-                <CallScore score={data.callScore} />
+                <CallScore score={displayScore} />
              </div>
              <div className="md:col-span-2">
                 <CoachingCard data={data.coaching} />
