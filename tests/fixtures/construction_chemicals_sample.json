@@ -1,0 +1,55 @@
+{
+  "transcript": [
+    { "speaker": "Sales Rep", "text": "Hi, I'm calling from ChemBuild. Do you have a moment to discuss your waterproofing needs?", "sentiment": "neutral", "timestamp": "00:05" },
+    { "speaker": "Prospect", "text": "We are actually having trouble with the basement sealing in our new mall project.", "sentiment": "negative", "timestamp": "00:15" }
+  ],
+  "sentimentGraph": [
+    { "timeOffset": 0, "score": 50, "label": "Intro" },
+    { "timeOffset": 30, "score": 75, "label": "Problem Discovery" }
+  ],
+  "coaching": {
+    "strengths": ["Good opening", "Identified pain point quickly"],
+    "missedOpportunities": ["Didn't ask about square footage immediately"],
+    "summary": "Solid discovery call but needs more technical qualification.",
+    "teachingMoments": ["Use the 'FEBA' technique for waterproofing specs."]
+  },
+  "competitors": [
+    { "name": "Sika", "timestamp": "02:10", "context": "Prospect mentioned they usually use Sika for these joints." }
+  ],
+  "objections": [
+    { "objection": "Price is too high per drum", "timestamp": "05:00", "severity": "High", "response": "Explained coverage area is double the competitor, so cost per sqft is lower." }
+  ],
+  "redFlags": [],
+  "nextSteps": ["Send technical data sheet", "Schedule site visit"],
+  "behavioral": {
+    "talkTimeSec": 120,
+    "listenTimeSec": 180,
+    "talkToListenRatio": 0.66,
+    "interruptions": 1,
+    "speakingRateWpm": 140,
+    "confidenceToneScore": 85
+  },
+  "microScores": {
+    "discoveryScore": 80,
+    "objectionHandlingScore": 90,
+    "productMatchScore": 95,
+    "technicalAccuracyScore": 88,
+    "complianceScore": 100
+  },
+  "industryAnalysis": {
+    "industryName": "Construction Chemicals",
+    "painPointsDetected": ["Water leakage", "Basement sealing"],
+    "buyingSignals": ["Asked for bulk pricing"],
+    "productsDiscussed": ["Polyurethane sealant", "Waterproofing membrane"]
+  },
+  "callMetadata": {
+    "durationSec": 300,
+    "language": "English",
+    "detectedIndustry": "Construction"
+  },
+  "modelCallScore": 88,
+  "trainingSuggested": {
+    "modules": ["Advanced Negotiation"],
+    "reason": "Price objection handling was good but could be smoother."
+  }
+}

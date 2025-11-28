@@ -1,140 +1,301 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AnalysisResult } from "../types";
+import { GoogleGenAI, Type, Schema, GenerateContentResponse } from "@google/genai";
+import { AnalysisResult, DerivedScores, MicroScores } from "../types";
 
 const API_KEY = process.env.API_KEY || '';
 
-// Define the expected JSON schema for the model's output
-const responseSchema: Schema = {
+// --- Configuration & Constants ---
+
+const MIN_AUDIO_SIZE_BYTES = 3000; // ~3KB, filter out empty/corrupt files
+
+const SUPPORTED_MIME_TYPES: Record<string, string> = {
+  'wav': 'audio/wav',
+  'mp3': 'audio/mpeg',
+  'm4a': 'audio/mp4',
+  'mp4': 'audio/mp4',
+  'aac': 'audio/aac',
+  'flac': 'audio/flac',
+  'ogg': 'audio/ogg',
+  'opus': 'audio/opus',
+  'webm': 'audio/webm',
+  'amr': 'audio/amr',
+  '3gp': 'audio/3gpp'
+};
+
+export class AIServiceError extends Error {
+  constructor(message: string, public originalError?: any) {
+    super(message);
+    this.name = 'AIServiceError';
+  }
+}
+
+export class GeminiParseError extends Error {
+  constructor(message: string, public rawText?: string) {
+    super(message);
+    this.name = 'GeminiParseError';
+  }
+}
+
+// --- Schema Definition ---
+
+const analysisSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     transcript: {
       type: Type.ARRAY,
-      description: "A diarized transcript of the conversation.",
       items: {
         type: Type.OBJECT,
         properties: {
-          speaker: { type: Type.STRING, description: "Name or role of the speaker (e.g., 'Sales Rep', 'Prospect')" },
-          text: { type: Type.STRING, description: "The content spoken." },
-          sentiment: { type: Type.STRING, enum: ["positive", "neutral", "negative"], description: "The sentiment of this specific segment." },
-          timestamp: { type: Type.STRING, description: "Approximate timestamp (e.g., '00:15')." },
+          speaker: { type: Type.STRING },
+          text: { type: Type.STRING },
+          sentiment: { type: Type.STRING, enum: ["positive", "neutral", "negative"] },
+          timestamp: { type: Type.STRING },
         },
         required: ["speaker", "text", "sentiment", "timestamp"],
       },
     },
     sentimentGraph: {
       type: Type.ARRAY,
-      description: "Data points for a line graph showing engagement/sentiment over the duration of the call.",
       items: {
         type: Type.OBJECT,
         properties: {
-          timeOffset: { type: Type.NUMBER, description: "Time offset in seconds or percentage of call." },
-          score: { type: Type.NUMBER, description: "Sentiment/Engagement score from 0 to 100." },
-          label: { type: Type.STRING, description: "Short label for this phase (e.g., Intro, Pitch, Objections)." },
+          timeOffset: { type: Type.NUMBER },
+          score: { type: Type.NUMBER },
+          label: { type: Type.STRING },
         },
         required: ["timeOffset", "score", "label"],
       },
     },
     coaching: {
       type: Type.OBJECT,
-      description: "Coaching insights based on the call.",
       properties: {
-        strengths: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: "List of 3 things the salesperson did well.",
-        },
-        missedOpportunities: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: "List of 3 missed opportunities or areas for improvement.",
-        },
-        summary: { type: Type.STRING, description: "A brief 2-sentence summary of the call outcome." },
+        strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+        missedOpportunities: { type: Type.ARRAY, items: { type: Type.STRING } },
+        summary: { type: Type.STRING },
+        teachingMoments: { type: Type.ARRAY, items: { type: Type.STRING } },
       },
-      required: ["strengths", "missedOpportunities", "summary"],
+      required: ["strengths", "missedOpportunities", "summary", "teachingMoments"],
     },
     competitors: {
       type: Type.ARRAY,
-      description: "List of competitors mentioned during the call. Return empty array if none.",
       items: {
         type: Type.OBJECT,
         properties: {
-          name: { type: Type.STRING, description: "Name of the competitor." },
-          timestamp: { type: Type.STRING, description: "Timestamp when mentioned (e.g. '02:15')." },
-          context: { type: Type.STRING, description: "Brief context of what was said about them." },
+          name: { type: Type.STRING },
+          timestamp: { type: Type.STRING },
+          context: { type: Type.STRING },
         },
         required: ["name", "timestamp", "context"],
       },
     },
-    callScore: {
-      type: Type.NUMBER,
-      description: "An overall score for the call from 0 to 100 based on sales best practices.",
-    },
     objections: {
       type: Type.ARRAY,
-      description: "List of objections raised by the prospect.",
       items: {
         type: Type.OBJECT,
         properties: {
-          objection: { type: Type.STRING, description: "The objection raised." },
-          timestamp: { type: Type.STRING, description: "Timestamp of the objection." },
-          response: { type: Type.STRING, description: "How the sales rep responded to the objection." },
+          objection: { type: Type.STRING },
+          timestamp: { type: Type.STRING },
+          severity: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+          response: { type: Type.STRING },
         },
-        required: ["objection", "timestamp", "response"],
+        required: ["objection", "timestamp", "severity", "response"],
       },
     },
     redFlags: {
       type: Type.ARRAY,
-      description: "Potential red flags or churn risks.",
       items: {
         type: Type.OBJECT,
         properties: {
-          flag: { type: Type.STRING, description: "The red flag identifier (e.g., 'Budget Constraint')." },
-          timestamp: { type: Type.STRING, description: "Timestamp." },
-          riskLevel: { type: Type.STRING, enum: ["High", "Medium", "Low"], description: "Severity of the risk." },
-          context: { type: Type.STRING, description: "Context around the red flag." },
+          flag: { type: Type.STRING },
+          timestamp: { type: Type.STRING },
+          riskLevel: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+          context: { type: Type.STRING },
         },
         required: ["flag", "timestamp", "riskLevel", "context"],
       },
     },
-    nextSteps: {
-      type: Type.ARRAY,
-      description: "Recommended next steps for the sales rep.",
-      items: { type: Type.STRING },
+    nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
+    behavioral: {
+      type: Type.OBJECT,
+      properties: {
+        talkTimeSec: { type: Type.NUMBER },
+        listenTimeSec: { type: Type.NUMBER },
+        talkToListenRatio: { type: Type.NUMBER },
+        interruptions: { type: Type.NUMBER },
+        speakingRateWpm: { type: Type.NUMBER },
+        confidenceToneScore: { type: Type.NUMBER },
+      },
+      required: ["talkTimeSec", "listenTimeSec", "talkToListenRatio", "interruptions", "speakingRateWpm", "confidenceToneScore"],
+    },
+    microScores: {
+      type: Type.OBJECT,
+      properties: {
+        discoveryScore: { type: Type.NUMBER },
+        objectionHandlingScore: { type: Type.NUMBER },
+        productMatchScore: { type: Type.NUMBER },
+        technicalAccuracyScore: { type: Type.NUMBER },
+        complianceScore: { type: Type.NUMBER },
+      },
+      required: ["discoveryScore", "objectionHandlingScore", "productMatchScore", "technicalAccuracyScore", "complianceScore"],
+    },
+    industryAnalysis: {
+      type: Type.OBJECT,
+      properties: {
+        industryName: { type: Type.STRING },
+        painPointsDetected: { type: Type.ARRAY, items: { type: Type.STRING } },
+        buyingSignals: { type: Type.ARRAY, items: { type: Type.STRING } },
+        productsDiscussed: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+      required: ["industryName", "painPointsDetected", "buyingSignals", "productsDiscussed"],
+    },
+    callMetadata: {
+      type: Type.OBJECT,
+      properties: {
+        durationSec: { type: Type.NUMBER },
+        language: { type: Type.STRING },
+        detectedIndustry: { type: Type.STRING },
+      },
+      required: ["durationSec", "language", "detectedIndustry"],
+    },
+    modelCallScore: { type: Type.NUMBER },
+    trainingSuggested: {
+      type: Type.OBJECT,
+      properties: {
+        modules: { type: Type.ARRAY, items: { type: Type.STRING } },
+        reason: { type: Type.STRING },
+      },
+      required: ["modules", "reason"],
     },
   },
-  required: ["transcript", "sentimentGraph", "coaching", "competitors", "callScore", "objections", "redFlags", "nextSteps"],
+  required: [
+    "transcript", "sentimentGraph", "coaching", "competitors", "objections", 
+    "redFlags", "nextSteps", "behavioral", "microScores", "industryAnalysis", 
+    "callMetadata", "modelCallScore", "trainingSuggested"
+  ],
 };
 
-export const analyzeSalesCall = async (base64Data: string, mimeType: string, customInstructions?: string): Promise<AnalysisResult> => {
+// --- Helper Functions ---
+
+export const getMimeTypeFromFilename = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  return SUPPORTED_MIME_TYPES[ext] || 'audio/*';
+};
+
+/**
+ * Calculates a deterministic derived score based on model micro-scores.
+ * This ensures standardization across the platform regardless of model hallucinations on the main score.
+ */
+const calculateDerivedScores = (micro: MicroScores, modelScore: number): DerivedScores => {
+  // Heuristic Weights
+  const wDiscovery = 0.25;
+  const wObjection = 0.25;
+  const wCompliance = 0.20;
+  const wTechnical = 0.15;
+  const wProduct = 0.15;
+
+  const skillsScore = 
+    (micro.discoveryScore * wDiscovery) + 
+    (micro.objectionHandlingScore * wObjection) + 
+    (micro.technicalAccuracyScore * wTechnical) +
+    (micro.productMatchScore * wProduct) +
+    (micro.complianceScore * wCompliance);
+
+  // Blend model's holistic score (40%) with our rigid rubric (60%)
+  const overall = Math.round((skillsScore * 0.6) + (modelScore * 0.4));
+
+  return {
+    overallScore: Math.min(100, Math.max(0, overall)),
+    weightedBreakdown: {
+      engagement: Math.round(micro.discoveryScore), // Proxy for engagement
+      skills: Math.round(skillsScore),
+      outcome: Math.round(modelScore), // Proxy for outcome/feeling
+    }
+  };
+};
+
+export interface AnalyzeOptions {
+  fileName?: string;
+  industryName?: string;
+  industryExamples?: string;
+  customInstructions?: string;
+}
+
+// --- Main Service ---
+
+export const analyzeSalesCall = async (
+  base64Data: string, 
+  inputMimeType: string, 
+  options: AnalyzeOptions = {}
+): Promise<AnalysisResult> => {
+  
   if (!API_KEY) {
-    throw new Error("API Key is missing. Please check your environment variables.");
+    throw new AIServiceError("API Key is missing. Check environment variables.");
   }
+
+  // 1. Input Validation
+  if (base64Data.length < MIN_AUDIO_SIZE_BYTES) {
+    throw new AIServiceError("Audio file is too short or empty.");
+  }
+
+  let finalMimeType = inputMimeType;
+  if (inputMimeType === 'audio/*' || !inputMimeType) {
+    if (options.fileName) {
+      finalMimeType = getMimeTypeFromFilename(options.fileName);
+    } else {
+      // Fallback for raw blob without metadata
+      finalMimeType = 'audio/mp3'; 
+    }
+  }
+  
+  // Verify support
+  const isVideo = finalMimeType.startsWith('video/');
+  if (!isVideo && !Object.values(SUPPORTED_MIME_TYPES).includes(finalMimeType) && finalMimeType !== 'audio/mp3') {
+     // We allow 'audio/mp3' as a generic fallback, but ideally should warn.
+     // Proceeding with best effort.
+  }
+
+  // 2. Build Prompt
+  const industryContext = options.industryName 
+    ? `\n**INDUSTRY CONTEXT**:
+       - Industry: ${options.industryName}
+       - Examples/Terminology: ${options.industryExamples || 'Standard terminology'}`
+    : `\n**INDUSTRY CONTEXT**:
+       - Please infer the specific industry (e.g., SaaS, Construction, Retail) from the conversation.`;
+
+  const promptText = `
+    Analyze this sales call (${finalMimeType}) comprehensively. 
+    You are an expert sales coach.
+    
+    ${industryContext}
+
+    ${options.customInstructions ? `**CUSTOM USER INSTRUCTIONS**:\n${options.customInstructions}\n` : ''}
+
+    **REQUIRED ANALYSIS DIMENSIONS**:
+    1. **Transcript**: Diarized (Speaker A/B), verbatim.
+    2. **Sentiment**: Time-series data (0-100) for graphing.
+    3. **Coaching**: Strengths, Missed Opportunities, Teaching Moments.
+    4. **Objections**: Specific objections, severity (High/Med/Low), and rep's response.
+    5. **Competitors**: Mentions with timestamp and context.
+    6. **Red Flags**: Churn risks, budget issues, or authority blockers.
+    7. **Behavioral**: Talk/Listen ratio, WPM, interruptions.
+    8. **Micro Scores**: Rate specific skills (Discovery, Objection Handling, etc.) 0-100.
+    9. **Next Steps**: Concrete action items.
+
+    **OUTPUT FORMAT**:
+    Return ONLY valid JSON matching the provided schema. 
+    - If unsure about a value, return null or an empty array. Do not hallucinate.
+    - Ensure 'talkToListenRatio' is a decimal (e.g., 0.65).
+  `;
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   try {
-    const promptText = `Analyze this sales call (audio or video) extensively based on the following parameters:
-            
-            1. **Transcript**: Transcribe the conversation, diarizing speakers (e.g., 'Sales Rep', 'Prospect').
-            2. **Sentiment Timeline**: Analyze sentiment flow (0-100) for a graph.
-            3. **Coaching**: Identify 3 strengths and 3 weaknesses (missed opportunities), plus a summary.
-            4. **Objection Detection**: Identify specific objections raised by the prospect and how the rep handled them.
-            5. **Red Flags/Churn Clues**: Identify risks (budget, authority, timeline, competitor lock-in). Assign High/Medium/Low risk.
-            6. **Competitor Mentions**: List any competitors mentioned with context.
-            7. **Next Steps**: Provide 3-5 concrete recommendations for what the rep should do next.
-            8. **Call Score**: Assign a final score (0-100) based on engagement, objection handling, and closing skills.
-            
-            ${customInstructions ? `\nIMPORTANT - CUSTOM USER INSTRUCTIONS:\nThe user has defined specific criteria for this analysis. Prioritize these instructions over generic rules: "${customInstructions}"\n` : ""}
-
-            Return the output strictly as JSON matching the schema provided.`;
-
-    const response = await ai.models.generateContent({
+    const response: GenerateContentResponse = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: {
         parts: [
           {
             inlineData: {
-              mimeType: mimeType,
+              mimeType: finalMimeType,
               data: base64Data,
             },
           },
@@ -145,21 +306,42 @@ export const analyzeSalesCall = async (base64Data: string, mimeType: string, cus
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: responseSchema,
-        temperature: 0.2,
+        responseSchema: analysisSchema,
+        temperature: 0.2, // Low temp for factual extraction
       },
     });
 
     const jsonText = response.text;
     if (!jsonText) {
-      throw new Error("Empty response from Gemini.");
+      throw new GeminiParseError("Received empty response from Gemini.");
     }
 
-    const result = JSON.parse(jsonText) as AnalysisResult;
-    return result;
+    let parsedResult: AnalysisResult;
+    try {
+      parsedResult = JSON.parse(jsonText);
+    } catch (e) {
+      throw new GeminiParseError("Failed to parse JSON response", jsonText);
+    }
 
-  } catch (error) {
-    console.error("Gemini Analysis Error:", error);
-    throw error;
+    // 3. Post-Processing & Derived Scoring
+    if (parsedResult.microScores && typeof parsedResult.modelCallScore === 'number') {
+      parsedResult.derivedScores = calculateDerivedScores(parsedResult.microScores, parsedResult.modelCallScore);
+    }
+
+    return parsedResult;
+
+  } catch (error: any) {
+    if (error instanceof GeminiParseError || error instanceof AIServiceError) {
+      throw error;
+    }
+    // Handle generic API errors
+    const msg = error.message || "Unknown error during AI analysis";
+    if (msg.includes("400") || msg.includes("INVALID_ARGUMENT")) {
+       throw new AIServiceError("Invalid request. Please check file format and size.", error);
+    }
+    if (msg.includes("503") || msg.includes("500")) {
+       throw new AIServiceError("AI Service is temporarily unavailable. Please retry.", error);
+    }
+    throw new AIServiceError(`Analysis failed: ${msg}`, error);
   }
 };

@@ -1,0 +1,52 @@
+{
+  "transcript": [
+    { "speaker": "Agent", "text": "Sir, loan approved hai, bas KYC chahiye.", "sentiment": "positive", "timestamp": "00:10" },
+    { "speaker": "Customer", "text": "Haan but interest rate high lag raha hai.", "sentiment": "negative", "timestamp": "00:25" }
+  ],
+  "sentimentGraph": [
+    { "timeOffset": 0, "score": 50, "label": "Start" }
+  ],
+  "coaching": {
+    "strengths": ["Clear communication in customer's language"],
+    "missedOpportunities": ["Didn't compare EMI with competitors"],
+    "summary": "Efficient operational call.",
+    "teachingMoments": []
+  },
+  "competitors": [],
+  "objections": [
+    { "objection": "Interest Rate High", "timestamp": "00:25", "severity": "Medium", "response": "Stated it is fixed rate." }
+  ],
+  "redFlags": [],
+  "nextSteps": ["Collect Aadhaar card"],
+  "behavioral": {
+    "talkTimeSec": 30,
+    "listenTimeSec": 30,
+    "talkToListenRatio": 1.0,
+    "interruptions": 0,
+    "speakingRateWpm": 130,
+    "confidenceToneScore": 90
+  },
+  "microScores": {
+    "discoveryScore": 60,
+    "objectionHandlingScore": 70,
+    "productMatchScore": 100,
+    "technicalAccuracyScore": 100,
+    "complianceScore": 100
+  },
+  "industryAnalysis": {
+    "industryName": "Fintech / Loans",
+    "painPointsDetected": ["Interest Rate"],
+    "buyingSignals": ["Ready for KYC"],
+    "productsDiscussed": ["Personal Loan"]
+  },
+  "callMetadata": {
+    "durationSec": 60,
+    "language": "Hinglish",
+    "detectedIndustry": "Finance"
+  },
+  "modelCallScore": 85,
+  "trainingSuggested": {
+    "modules": [],
+    "reason": "Good performance."
+  }
+}

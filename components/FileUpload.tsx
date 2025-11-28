@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { UploadCloud, FileAudio, AlertCircle, Link as LinkIcon, FileVideo, X, Play, Music, Video } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { UploadCloud, FileAudio, AlertCircle, Link as LinkIcon, FileVideo, X, Play, Music, Video, Sparkles } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -23,6 +23,31 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'upload' | 'link'>('upload');
   const [urlInput, setUrlInput] = useState('');
+  
+  // Loading state management
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+
+  const loadingMessages = [
+    "Uploading media securely...",
+    "Extracting audio data...",
+    "Transcribing conversation...",
+    "Identifying speakers (Diarization)...",
+    "Analyzing sentiment patterns...",
+    "Detecting sales objections...",
+    "Generating coaching insights...",
+    "Finalizing analysis report..."
+  ];
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isAnalyzing) {
+      setLoadingMsgIndex(0);
+      interval = setInterval(() => {
+        setLoadingMsgIndex((prev) => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
+      }, 2500); // Change message every 2.5s
+    }
+    return () => clearInterval(interval);
+  }, [isAnalyzing]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -100,49 +125,85 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     
     return (
       <div className="w-full max-w-2xl mx-auto mt-12 px-4 animate-fade-in">
-        <div className="bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
-          <div className="p-8 flex flex-col items-center text-center">
-            <div className={`
-              w-20 h-20 rounded-2xl flex items-center justify-center mb-6
-              ${isVideo ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}
-            `}>
-              {isVideo ? <Video size={40} /> : <Music size={40} />}
-            </div>
-            
-            <h3 className="text-xl font-bold text-gray-900 mb-2 break-all max-w-full">
-              {selectedFile.name}
-            </h3>
-            <p className="text-gray-500 mb-8">Ready to analyze</p>
+        <style>{`
+          @keyframes indeterminate {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          .animate-indeterminate {
+            animation: indeterminate 1.5s infinite linear;
+          }
+        `}</style>
+        
+        <div className="bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden min-h-[320px] flex flex-col justify-center transition-all duration-300">
+          
+          {isAnalyzing ? (
+            <div className="p-8 flex flex-col items-center text-center">
+              {/* Animation Container */}
+              <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
+                 {/* Pulsing Background */}
+                 <div className="absolute inset-0 bg-primary-100 rounded-full animate-ping opacity-75"></div>
+                 
+                 {/* Spinning Ring */}
+                 <div className="absolute inset-0 border-4 border-primary-200 rounded-full"></div>
+                 <div className="absolute inset-0 border-4 border-t-primary-600 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                 
+                 {/* Icon */}
+                 <div className="relative bg-white rounded-full p-4 shadow-sm z-10">
+                   <Sparkles className="text-primary-600" size={32} />
+                 </div>
+              </div>
 
-            <div className="flex gap-4 w-full max-w-md">
-              <button
-                onClick={onRemove}
-                disabled={isAnalyzing}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                <X size={18} />
-                Remove
-              </button>
-              <button
-                onClick={onAnalyze}
-                disabled={isAnalyzing}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-primary-500/30 disabled:opacity-50"
-              >
-                {isAnalyzing ? (
-                  <span className="animate-pulse">Processing...</span>
-                ) : (
-                  <>
-                    <Play size={18} fill="currentColor" />
-                    Analyze
-                  </>
-                )}
-              </button>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Analyzing Conversation
+              </h3>
+              
+              <div className="h-6 overflow-hidden relative w-full">
+                 <p key={loadingMsgIndex} className="text-primary-600 font-medium animate-fade-in absolute w-full left-0 top-0">
+                   {loadingMessages[loadingMsgIndex]}
+                 </p>
+              </div>
+
+              {/* Indeterminate Progress Bar */}
+              <div className="w-full max-w-xs h-1.5 bg-gray-100 rounded-full mt-8 overflow-hidden relative">
+                <div className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-transparent via-primary-500 to-transparent w-1/2 h-full animate-indeterminate rounded-full"></div>
+              </div>
+              
+              <p className="text-xs text-gray-400 mt-4">
+                This may take up to a minute depending on call length.
+              </p>
             </div>
-          </div>
-          {isAnalyzing && (
-             <div className="h-1.5 w-full bg-gray-100">
-               <div className="h-full bg-primary-500 animate-progress"></div>
-             </div>
+          ) : (
+            <div className="p-8 flex flex-col items-center text-center">
+              <div className={`
+                w-20 h-20 rounded-2xl flex items-center justify-center mb-6
+                ${isVideo ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}
+              `}>
+                {isVideo ? <Video size={40} /> : <Music size={40} />}
+              </div>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-2 break-all max-w-full">
+                {selectedFile.name}
+              </h3>
+              <p className="text-gray-500 mb-8">Ready to analyze</p>
+
+              <div className="flex gap-4 w-full max-w-md">
+                <button
+                  onClick={onRemove}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <X size={18} />
+                  Remove
+                </button>
+                <button
+                  onClick={onAnalyze}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-primary-500/30"
+                >
+                  <Play size={18} fill="currentColor" />
+                  Analyze
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
